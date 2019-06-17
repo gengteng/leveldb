@@ -4,7 +4,7 @@
 
 cmake_minimum_required(VERSION 3.9)
 # Keep the version below in sync with the one in db.h
-project(leveldb VERSION 1.21.0 LANGUAGES C CXX)
+project(leveldb VERSION 1.22.0 LANGUAGES C CXX)
 
 # This project can use C11, but will gracefully decay down to C89.
 set(CMAKE_C_STANDARD 11)
@@ -47,6 +47,31 @@ include(CheckCXXSymbolExists)
 # (-std=c11), but do expose the function in standard C++ mode (-std=c++11).
 check_cxx_symbol_exists(fdatasync "unistd.h" HAVE_FDATASYNC)
 check_cxx_symbol_exists(F_FULLFSYNC "fcntl.h" HAVE_FULLFSYNC)
+check_cxx_symbol_exists(O_CLOEXEC "fcntl.h" HAVE_O_CLOEXEC)
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+  # Disable C++ exceptions.
+  string(REGEX REPLACE "/EH[a-z]+" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHs-c-")
+  add_definitions(-D_HAS_EXCEPTIONS=0)
+
+  # Disable RTTI.
+  string(REGEX REPLACE "/GR" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /GR-")
+else(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+  # Enable strict prototype warnings for C code in clang and gcc.
+  if(NOT CMAKE_C_FLAGS MATCHES "-Wstrict-prototypes")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wstrict-prototypes")
+  endif(NOT CMAKE_C_FLAGS MATCHES "-Wstrict-prototypes")
+
+  # Disable C++ exceptions.
+  string(REGEX REPLACE "-fexceptions" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
+
+  # Disable RTTI.
+  string(REGEX REPLACE "-frtti" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
+endif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
 
 include(CheckCXXSourceCompiles)
 
@@ -374,12 +399,12 @@ if(LEVELDB_BUILD_BENCHMARKS)
   endfunction(leveldb_benchmark)
 
   if(NOT BUILD_SHARED_LIBS)
-    leveldb_benchmark("${PROJECT_SOURCE_DIR}/db/db_bench.cc")
+    leveldb_benchmark("${PROJECT_SOURCE_DIR}/benchmarks/db_bench.cc")
   endif(NOT BUILD_SHARED_LIBS)
 
   check_library_exists(sqlite3 sqlite3_open "" HAVE_SQLITE3)
   if(HAVE_SQLITE3)
-    leveldb_benchmark("${PROJECT_SOURCE_DIR}/doc/bench/db_bench_sqlite3.cc")
+    leveldb_benchmark("${PROJECT_SOURCE_DIR}/benchmarks/db_bench_sqlite3.cc")
     target_link_libraries(db_bench_sqlite3 sqlite3)
   endif(HAVE_SQLITE3)
 
@@ -399,7 +424,7 @@ int main() {
   "  HAVE_KYOTOCABINET)
   set(CMAKE_REQUIRED_LIBRARIES ${OLD_CMAKE_REQURED_LIBRARIES})
   if(HAVE_KYOTOCABINET)
-    leveldb_benchmark("${PROJECT_SOURCE_DIR}/doc/bench/db_bench_tree_db.cc")
+    leveldb_benchmark("${PROJECT_SOURCE_DIR}/benchmarks/db_bench_tree_db.cc")
     target_link_libraries(db_bench_tree_db kyotocabinet)
   endif(HAVE_KYOTOCABINET)
 endif(LEVELDB_BUILD_BENCHMARKS)
